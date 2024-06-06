@@ -4,20 +4,31 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local MouseIsMoving = false
 local MouseIsMovingLF = false
-local Timer = 0
-
+local LastFace = Vector3.new(0,0,0)
+local DirChange = 0
 
 local Bind = Enum.KeyCode.Space
 local Strength = 5
 
-local SmoothMovements = true
-local SmoothingTime = 0.1
-local OverTime = 0.1
+local UseGradient = true
+local GradientCentre = 2
+local MinGradient = 0
+local MaxGradient = 1.2
+local ActivateThreshold = 0.25
+local DeactivateThreshold = 64
+local OverTime = 0.05
+
+
+
 local StoppedAt = tick()
+
+local function VectorAngle(a,b)
+	if a == b then return 0 end
+	return math.acos(a.Unit:Dot(b.Unit))
+end
 
 local function OnChange(Input,gpe)
 	if Input.UserInputType == Enum.UserInputType.MouseMovement then
-		print(Input.Delta)
 		if math.abs(Input.Delta.X) > 0 then
 			MouseIsMoving = true
 		end
@@ -69,13 +80,26 @@ local function Main(step)
 			local Camera = workspace.CurrentCamera
 			if UIS:IsKeyDown(Enum.KeyCode.Space) then
 				local Target = ClosestPlayer(HRP.Position)
+				if not Target.RootPart and RunService:IsStudio() then
+					Target = {RootPart = workspace.Dummy.HumanoidRootPart}
+				end
 				if Target.RootPart then
 					local TargetPos = Target.RootPart.Position
 					local CurrentPos = HRP.Position
 					local ClampedStrength = math.min(Strength * step,1)
-					if SmoothMovements then
-						ClampedStrength *= math.min(Timer/SmoothingTime,1)
+					local Facing = (((HRP.CFrame * CFrame.new(Vector3.new(-1,0,-1))).Position - HRP.Position) * Vector3.new(1,0,1)).Unit
+					
+					local FaceAngle = VectorAngle(Facing,LastFace)/step
+					if UseGradient then
+						if FaceAngle > ActivateThreshold and FaceAngle < DeactivateThreshold then
+							ClampedStrength *= math.clamp(FaceAngle/GradientCentre,MinGradient,MaxGradient)	
+						else
+							ClampedStrength = 0
+						end
 					end
+					print(FaceAngle)
+					
+					
 					if tick()-StoppedAt < OverTime and not MouseIsMoving and OverTime ~= 0 then
 						ClampedStrength *= math.clamp((OverTime - (tick()-StoppedAt))/OverTime,0,1)
 					end
@@ -85,20 +109,16 @@ local function Main(step)
 					FaceFrom = Vector3.new(FaceFrom.X,HRP.Position.Y,FaceFrom.Z)
 					local EP =  FaceFrom + ((TargetPos-FaceFrom) * ClampedStrength)
 					if MouseIsMoving or (tick()-StoppedAt < OverTime) then
-						Timer += step
 						local Dir = Face(EP,HRP,CFrame.Angles(0,0.78539816339,0))
 						if Dir then
 							Camera.CFrame = Dir * CamOffset
 						end
 					elseif MouseIsMovingLF then
 						StoppedAt = tick()
-					else
-						Timer = 0
 					end
 				end
-			else
-				Timer = 0
 			end
+			LastFace = (((HRP.CFrame * CFrame.new(Vector3.new(-1,0,-1))).Position - HRP.Position) * Vector3.new(1,0,1)).Unit
 		end
 	end
 	MouseIsMovingLF = MouseIsMoving
