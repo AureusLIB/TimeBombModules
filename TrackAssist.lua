@@ -11,12 +11,13 @@ local Bind = Enum.KeyCode.Space
 local Strength = 5
 
 local UseGradient = true
-local GradientCentre = 2
+local GradientCentre = 3
 local MinGradient = 0
 local MaxGradient = 1.2
 local ActivateThreshold = 0.25
 local DeactivateThreshold = 64
 local OverTime = 0.05
+local MaxDistance = 7.5
 
 
 
@@ -80,25 +81,18 @@ local function Main(step)
 			local Camera = workspace.CurrentCamera
 			if UIS:IsKeyDown(Enum.KeyCode.Space) then
 				local Target = ClosestPlayer(HRP.Position)
-				if not Target.RootPart and RunService:IsStudio() then
-					Target = {RootPart = workspace.Dummy.HumanoidRootPart}
-				end
-				if Target.RootPart then
+				if Target.RootPart and Target.Distance <= MaxDistance then
 					local TargetPos = Target.RootPart.Position
 					local CurrentPos = HRP.Position
 					local ClampedStrength = math.min(Strength * step,1)
 					local Facing = (((HRP.CFrame * CFrame.new(Vector3.new(-1,0,-1))).Position - HRP.Position) * Vector3.new(1,0,1)).Unit
 					
 					local FaceAngle = VectorAngle(Facing,LastFace)/step
-					if UseGradient then
-						if FaceAngle > ActivateThreshold and FaceAngle < DeactivateThreshold then
-							ClampedStrength *= math.clamp(FaceAngle/GradientCentre,MinGradient,MaxGradient)	
-						else
-							ClampedStrength = 0
-						end
+					if FaceAngle > ActivateThreshold and FaceAngle < DeactivateThreshold then
+						ClampedStrength *= math.clamp(FaceAngle/GradientCentre,MinGradient,MaxGradient)	
+					else
+						ClampedStrength = 0
 					end
-					print(FaceAngle)
-					
 					
 					if tick()-StoppedAt < OverTime and not MouseIsMoving and OverTime ~= 0 then
 						ClampedStrength *= math.clamp((OverTime - (tick()-StoppedAt))/OverTime,0,1)
