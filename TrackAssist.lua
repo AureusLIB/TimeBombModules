@@ -17,7 +17,7 @@ local MaxGradient = 1.2
 local ActivateThreshold = 0.25
 local DeactivateThreshold = 64
 local OverTime = 0.05
-local MaxDistance = 7.5
+local MaxDistance = 9
 
 
 
@@ -93,6 +93,7 @@ local function Main(step)
 					else
 						ClampedStrength = 0
 					end
+					
 					
 					if tick()-StoppedAt < OverTime and not MouseIsMoving and OverTime ~= 0 then
 						ClampedStrength *= math.clamp((OverTime - (tick()-StoppedAt))/OverTime,0,1)
