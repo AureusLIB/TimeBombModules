@@ -17,7 +17,7 @@ local MaxGradient = 1.2
 local ActivateThreshold = 0.25
 local DeactivateThreshold = 64
 local OverTime = 0.05
-local MaxDistance = 16
+local MaxDistance = 20
 
 
 
