@@ -4,7 +4,6 @@ local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/v
 
 local RunScript = true
 
---Script variables
 local TrackAssist = {
 	Enabled = false,
 	Strength = 2,
@@ -46,8 +45,6 @@ local Tabs = {
 	Legit = Window:AddTab('Legit'),
 	UISettings = Window:AddTab('UI Settings'),
 }
-
---TRACKING
 
 local LegitMainLeft = Tabs.Legit:AddLeftGroupbox("Track Assist")
 
@@ -206,10 +203,6 @@ LegitMainLeft:AddSlider('TAMaxDist', {
 		TrackAssist.MaxDistance = Value
 	end
 })
-
-
-
---HOLDING
 
 local LegitMainRight = Tabs.Legit:AddRightGroupbox("Holding Assist")
 
@@ -384,8 +377,6 @@ SaveManager:SetFolder('Aureus/Timebomb')
 SaveManager:BuildConfigSection(Tabs.UISettings)
 ThemeManager:ApplyToTab(Tabs.UISettings)
 SaveManager:LoadAutoloadConfig()
-
---Script section
 
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
