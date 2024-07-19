@@ -4,6 +4,7 @@ local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/v
 
 local RunScript = true
 
+--Script variables
 local TrackAssist = {
 	Enabled = false,
 	Strength = 2,
@@ -32,13 +33,20 @@ local HoldAssist = {
 	Overtime = 0.05
 }
 
+local Desync = {
+	Enabled = false,
+	Delay = 0.25,
+	Visualise = false,
+	Color = Color3.fromRGB(64,0,255),
+	Transparency = 0.75
+}
+
 local Window = Library:CreateWindow({
 	Title = 'Timebomb',
 	Center = true,
 	AutoShow = true,
 	TabPadding = 8,
-	MenuFadeTime = 0.2,
-	Overtime = 0.05
+	MenuFadeTime = 0
 })
 
 local Tabs = {
@@ -46,7 +54,11 @@ local Tabs = {
 	UISettings = Window:AddTab('UI Settings'),
 }
 
-local LegitMainLeft = Tabs.Legit:AddLeftGroupbox("Track Assist")
+--TRACKING
+
+local LegitMainLeftTab = Tabs.Legit:AddLeftTabbox("Track Assist") --local TabBox = Tabs.Main:AddRightTabbox()
+
+local LegitMainLeft = LegitMainLeftTab:AddTab("Tracking")
 
 local TrackAssistToggle = LegitMainLeft:AddToggle('TrackAssist', {
 	Text = 'Track assist',
@@ -204,7 +216,11 @@ LegitMainLeft:AddSlider('TAMaxDist', {
 	end
 })
 
-local LegitMainRight = Tabs.Legit:AddRightGroupbox("Holding Assist")
+
+
+--HOLDING
+
+local LegitMainRight = LegitMainLeftTab:AddTab("Holding")
 
 local HoldAssistToggle = LegitMainRight:AddToggle('HoldAssist', {
 	Text = 'Hold assist',
@@ -363,6 +379,56 @@ LegitMainRight:AddSlider('HAMaxDist', {
 })
 
 
+--DESYNC
+--[[
+local DesyncBox = Tabs.Legit:AddRightGroupbox("Desync")
+
+local DesyncToggle = DesyncBox:AddToggle('Desync', {
+	Text = 'Activate desync',
+	Default = false,
+	Tooltip = 'changes your position on the server',
+
+	Callback = function(Value)
+		Desync.Enabled = Value
+	end
+})
+
+DesyncBox:AddToggle('DesyncVisualise', {
+	Text = 'Visualiser',
+	Default = false,
+	Tooltip = 'Shows where you are on the server',
+
+	Callback = function(Value)
+		Desync.Visualise = Value
+	end
+}):AddColorPicker('DSColor', {
+	Default = Color3.new(0.2509803922, 0, 1),
+	Title = 'Visualiser color',
+	Transparency = 0.25,
+
+	Callback = function(Value)
+		Desync.Color = Value
+	end
+})
+
+
+
+DesyncBox:AddSlider('DesyncDelay', {
+	Text = 'Delay',
+	Default = 0,
+	Min = 0,
+	Max = 1000,
+	Rounding = 0,
+	Compact = false,
+
+	Callback = function(Value)
+		Desync.Delay = Value * 0.001
+	end
+})
+
+]]
+
+
 
 local MenuGroup = Tabs.UISettings:AddLeftGroupbox('Menu')
 MenuGroup:AddButton('Unload', function() RunScript = false Library:Unload() end)
@@ -378,6 +444,8 @@ SaveManager:BuildConfigSection(Tabs.UISettings)
 ThemeManager:ApplyToTab(Tabs.UISettings)
 SaveManager:LoadAutoloadConfig()
 
+--Script section
+
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
@@ -389,6 +457,8 @@ local MouseIsMoving = false
 local MouseWasMoving = false
 local LastFace = Vector3.zero
 local StoppedAt = tick()
+
+local PositionRecord = {}
 
 local function VectorAngle(a,b)
 	if a == b then return 0 end
@@ -444,11 +514,11 @@ local function AimAssist(Position: Vector3,Settings,Step)
 	local Character = LocalPlayer.Character
 	local HRP = Character:FindFirstChild("HumanoidRootPart")
 	local CurrentPos = HRP.Position
-	
+
 	if (CurrentPos - Position).Magnitude > Settings.MaxDistance then
 		return
 	end
-	
+
 	local ClampedStrength = math.min(TrackAssist.Strength * Step,1)
 	local Facing = (((HRP.CFrame * CFrame.new(Vector3.new(-1,0,-1))).Position - HRP.Position) * Vector3.new(1,0,1)).Unit
 
@@ -480,26 +550,29 @@ end
 
 local function MainScript(Step)
 	Camera = workspace.CurrentCamera
-	
+
 	if not RunScript then
 		return
 	end
-	
+
 	local Character: Model = LocalPlayer.Character
 	if Character then
 		local HRP: Part = Character:FindFirstChild("HumanoidRootPart")
-		
+
+
+		PositionRecord[tick()] = HRP.CFrame
+
 		if HRP then
 			local ClosestPlayer = ClosestPlayer(HRP.Position)
-			
-			
+
+
 			if TrackAssist.Enabled then
 				local AssistTrack = Options.TrackAssistKeybind:GetState()
 				if AssistTrack then
 					AimAssist(ClosestPlayer.Position,TrackAssist,Step)
 				end
 			end
-			
+
 			if HoldAssist.Enabled then
 				local AssistHold = Options.HoldAssistKeybind:GetState()
 				if AssistHold then
@@ -507,7 +580,7 @@ local function MainScript(Step)
 					AimAssist(HRP.Position - Difference,HoldAssist,Step)
 				end
 			end
-			
+
 			LastFace = (((HRP.CFrame * CFrame.new(Vector3.new(-1,0,-1))).Position - HRP.Position) * Vector3.new(1,0,1)).Unit
 		end
 	end
@@ -516,5 +589,75 @@ local function MainScript(Step)
 	MouseIsMoving = false
 end
 
+local function NearestIndexTo(Timer)
+	local MinDiff = math.huge
+	local NearestIndex = nil
+	for Time,_ in pairs(PositionRecord) do
+		if tick()-Time > 1 then
+			PositionRecord[Time] = nil
+			continue
+		end
+
+		local temp = math.abs(Time-Timer)
+		if temp < MinDiff then
+			NearestIndex = Time
+			MinDiff = temp
+		end
+	end
+	return PositionRecord[NearestIndex] or nil
+end
+
+local function DesyncStep(Step)
+	if not RunScript then return end
+	local Character = LocalPlayer.Character
+
+	if Character then
+		local HRP = Character:FindFirstChild("HumanoidRootPart")
+		if HRP then
+			if Desync.Enabled then
+
+				local HRPpos = HRP.CFrame
+
+				local Positions_2 = NearestIndexTo(tick()-Desync.Delay)
+				
+				if not Positions_2 then return end
+
+				HRP.CFrame = Positions_2
+
+				local Parts = {}
+				for i,v in pairs(Character:GetChildren()) do
+					if v:IsA("Part") then
+						if Desync.Visualise then
+							local Part = Instance.new("Part")
+							Part.CanCollide = false
+							Part.Anchored = true
+							Part.Color = Desync.Color
+							Part.Transparency = Options.DSColor.Transparency
+							Part.Size = v.Size
+							Part.CFrame = v.CFrame
+							Part.Parent = workspace
+							Part.Material = Enum.Material.Neon
+							table.insert(Parts,Part)
+						end
+					end
+				end
+
+
+				RunService.RenderStepped:Wait()
+
+				HRP.CFrame = HRPpos
+	
+				RunService.Heartbeat:Wait()
+
+				for _,v in pairs(Parts) do
+					v:Destroy()
+				end
+
+			end
+		end
+	end
+end
+
 UserInputService.InputChanged:Connect(OnInputChange)
 RunService.RenderStepped:Connect(MainScript)
+RunService.Heartbeat:Connect(DesyncStep)
