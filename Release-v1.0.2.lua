@@ -33,12 +33,9 @@ local HoldAssist = {
 	Overtime = 0.05
 }
 
-local Desync = {
+local FGrab = {
 	Enabled = false,
-	Delay = 0.25,
-	Visualise = false,
-	Color = Color3.fromRGB(64,0,255),
-	Transparency = 0.75
+	Size = 3
 }
 
 local Window = Library:CreateWindow({
@@ -50,8 +47,10 @@ local Window = Library:CreateWindow({
 })
 
 local Tabs = {
-	Legit = Window:AddTab('Legit'),
-	UISettings = Window:AddTab('UI Settings'),
+	Legit = Window:AddTab("Legit"),
+	Visuals = Window:AddTab("Visuals"),
+	Rage = Window:AddTab("Rage"),
+	UISettings = Window:AddTab("UI Settings"),
 }
 
 --TRACKING
@@ -380,54 +379,46 @@ LegitMainRight:AddSlider('HAMaxDist', {
 
 
 --DESYNC
---[[
-local DesyncBox = Tabs.Legit:AddRightGroupbox("Desync")
 
-local DesyncToggle = DesyncBox:AddToggle('Desync', {
-	Text = 'Activate desync',
+local GrabForceBox = Tabs.Rage:AddLeftGroupbox("Force Grab")
+
+local FGrabToggle = GrabForceBox:AddToggle('FGrabToggle', {
+	Text = 'Activate force grab',
 	Default = false,
-	Tooltip = 'changes your position on the server',
+	Tooltip = 'Changes your arms size',
 
 	Callback = function(Value)
-		Desync.Enabled = Value
+		FGrab.Enabled = Value
 	end
-})
+}):AddKeyPicker('FGrabKeybind', {
+	Default = 'F',
+	SyncToggleState = false,
+	Mode = 'Hold',
 
-DesyncBox:AddToggle('DesyncVisualise', {
-	Text = 'Visualiser',
-	Default = false,
-	Tooltip = 'Shows where you are on the server',
-
-	Callback = function(Value)
-		Desync.Visualise = Value
-	end
-}):AddColorPicker('DSColor', {
-	Default = Color3.new(0.2509803922, 0, 1),
-	Title = 'Visualiser color',
-	Transparency = 0.25,
-
-	Callback = function(Value)
-		Desync.Color = Value
-	end
+	Text = 'Force grab',
+	NoUI = true
 })
 
 
 
-DesyncBox:AddSlider('DesyncDelay', {
-	Text = 'Delay',
-	Default = 0,
-	Min = 0,
-	Max = 1000,
-	Rounding = 0,
+GrabForceBox:AddSlider('FGrabSize', {
+	Text = 'Arm size',
+	Default = 3,
+	Min = 1,
+	Max = 5,
+	Rounding = 1,
 	Compact = false,
 
 	Callback = function(Value)
-		Desync.Delay = Value * 0.001
+		FGrab.Size = Value
 	end
 })
 
+--[[
+	VISUALS
 ]]
 
+local PanicBox = Tabs.Legit:AddRightGroupbox("Panic button")
 
 
 local MenuGroup = Tabs.UISettings:AddLeftGroupbox('Menu')
@@ -452,6 +443,20 @@ local Players = game:GetService("Players")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
+
+
+local letters = {'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z'}
+
+local function GenString(length)
+	local t = {}
+	for _ = 1,length do
+		table.insert(t,string.upper(letters[math.random(1,#letters)]))
+	end
+	return table.concat(t,"")
+end
+
+local Folder = Instance.new("Folder",workspace)
+Folder.Name = GenString(15)
 
 local MouseIsMoving = false
 local MouseWasMoving = false
@@ -554,13 +559,37 @@ local function MainScript(Step)
 	if not RunScript then
 		return
 	end
-
+	
 	local Character: Model = LocalPlayer.Character
 	if Character then
+		Character.Archivable = true
 		local HRP: Part = Character:FindFirstChild("HumanoidRootPart")
-
-
-		PositionRecord[tick()] = HRP.CFrame
+		local LeftArm: Part = Character:FindFirstChild("Left Arm")
+		local RightArm: Part = Character:FindFirstChild("Right Arm")
+		local PC = Folder:FindFirstChild("PlayerClone")
+		local PCL,PCR
+		if LeftArm then
+			if PC then
+				PCL = PC:FindFirstChild("Left Arm")
+				if PCL then
+					PCL.CFrame = LeftArm.CFrame
+					PCL.Transparency = 1
+				end
+			end
+			LeftArm.Size = Vector3.new(1,2,1)
+			LeftArm.Transparency = 0
+		end
+		if RightArm then
+			if PC then
+				PCR = PC:FindFirstChild("Right Arm")
+				if PCR then
+					PCR.CFrame = RightArm.CFrame
+					PCR.Transparency = 1
+				end
+			end
+			RightArm.Size = Vector3.new(1,2,1)
+			RightArm.Transparency = 0
+		end
 
 		if HRP then
 			local ClosestPlayer = ClosestPlayer(HRP.Position)
@@ -582,6 +611,41 @@ local function MainScript(Step)
 			end
 
 			LastFace = (((HRP.CFrame * CFrame.new(Vector3.new(-1,0,-1))).Position - HRP.Position) * Vector3.new(1,0,1)).Unit
+			
+			if FGrab.Enabled then
+				local ForceGrab = Options.FGrabKeybind:GetState()
+				if ForceGrab then
+					if not Folder:FindFirstChild("PlayerClone") then
+						local FChar = Character:Clone()
+						FChar.Parent = Folder
+						FChar.Name = "PlayerClone"
+						for _,v in pairs(FChar:GetChildren()) do
+							if v:IsA("Part") then
+								v.Anchored = true
+								if not (v.Name == "Left Arm" or v.Name == "Right Arm") then
+									v:Destroy()
+								elseif v.Name == "Left Arm" then
+									v.CFrame = LeftArm.CFrame
+								elseif v.Name == "Right Arm" then
+									v.CFrame = RightArm.CFrame
+								end
+							end
+							if v:IsA("Tool") then
+								v:Destroy()
+							end
+						end
+					end
+					local GS = FGrab.Size
+					if RightArm and LeftArm and PCL and PCR then
+						PCL.Transparency = 0
+						PCR.Transparency = 0
+						LeftArm.Transparency = 1
+						RightArm.Transparency = 1
+						LeftArm.Size = Vector3.new(GS,GS,GS)
+						RightArm.Size = Vector3.new(GS,GS,GS)
+					end
+				end
+			end
 		end
 	end
 
@@ -607,57 +671,6 @@ local function NearestIndexTo(Timer)
 	return PositionRecord[NearestIndex] or nil
 end
 
-local function DesyncStep(Step)
-	if not RunScript then return end
-	local Character = LocalPlayer.Character
-
-	if Character then
-		local HRP = Character:FindFirstChild("HumanoidRootPart")
-		if HRP then
-			if Desync.Enabled then
-
-				local HRPpos = HRP.CFrame
-
-				local Positions_2 = NearestIndexTo(tick()-Desync.Delay)
-				
-				if not Positions_2 then return end
-
-				HRP.CFrame = Positions_2
-
-				local Parts = {}
-				for i,v in pairs(Character:GetChildren()) do
-					if v:IsA("Part") then
-						if Desync.Visualise then
-							local Part = Instance.new("Part")
-							Part.CanCollide = false
-							Part.Anchored = true
-							Part.Color = Desync.Color
-							Part.Transparency = Options.DSColor.Transparency
-							Part.Size = v.Size
-							Part.CFrame = v.CFrame
-							Part.Parent = workspace
-							Part.Material = Enum.Material.Neon
-							table.insert(Parts,Part)
-						end
-					end
-				end
-
-
-				RunService.RenderStepped:Wait()
-
-				HRP.CFrame = HRPpos
-	
-				RunService.Heartbeat:Wait()
-
-				for _,v in pairs(Parts) do
-					v:Destroy()
-				end
-
-			end
-		end
-	end
-end
 
 UserInputService.InputChanged:Connect(OnInputChange)
 RunService.RenderStepped:Connect(MainScript)
-RunService.Heartbeat:Connect(DesyncStep)
