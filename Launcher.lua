@@ -38,6 +38,17 @@ local FGrab = {
 	Size = 3
 }
 
+local ESP = {
+	Enabled = false
+}
+
+local SkeletonESP = {
+	Enabled = false,
+	Colour = Color3.fromRGB(55,155,255),
+	SelfSkeleton = false,
+	SelfColour = Color3.new(0.205,0.923,0.514)
+}
+
 local Window = Library:CreateWindow({
 	Title = 'Timebomb',
 	Center = true,
@@ -48,8 +59,8 @@ local Window = Library:CreateWindow({
 
 local Tabs = {
 	Legit = Window:AddTab("Legit"),
+	SemiRage = Window:AddTab("Semi-Rage"),
 	Visuals = Window:AddTab("Visuals"),
-	Rage = Window:AddTab("Rage"),
 	UISettings = Window:AddTab("UI Settings"),
 }
 
@@ -380,7 +391,7 @@ LegitMainRight:AddSlider('HAMaxDist', {
 
 --DESYNC
 
-local GrabForceBox = Tabs.Rage:AddLeftGroupbox("Force Grab")
+local GrabForceBox = Tabs.SemiRage:AddLeftGroupbox("Force Grab")
 
 local FGrabToggle = GrabForceBox:AddToggle('FGrabToggle', {
 	Text = 'Activate force grab',
@@ -405,7 +416,7 @@ GrabForceBox:AddSlider('FGrabSize', {
 	Text = 'Arm size',
 	Default = 3,
 	Min = 1,
-	Max = 5,
+	Max = 6,
 	Rounding = 1,
 	Compact = false,
 
@@ -418,8 +429,67 @@ GrabForceBox:AddSlider('FGrabSize', {
 	VISUALS
 ]]
 
-local PanicBox = Tabs.Legit:AddRightGroupbox("Panic button")
+local ESPMain = Tabs.Visuals:AddLeftGroupbox("ESP")
 
+local ESPToggle = ESPMain:AddToggle('EspToggle', {
+	Text = 'ESP',
+	Default = false,
+	Tooltip = 'Toggle ESP',
+
+	Callback = function(Value)
+		ESP.Enabled = Value
+	end
+}):AddKeyPicker('EspKeybind', {
+	Default = '',
+	SyncToggleState = false,
+	Mode = 'Toggle',
+
+	Text = 'Toggle esp',
+	NoUI = true
+})
+
+
+local SkeletonToggle = ESPMain:AddToggle('SkeletonToggle', {
+	Text = 'Skeleton ESP',
+	Default = false,
+	Tooltip = 'skeleton esp',
+
+	Callback = function(Value)
+		SkeletonESP.Enabled = Value
+	end
+}):AddColorPicker('SkeletonColour', {
+	Default = Color3.new(0.216,0.608,1),
+	Title = 'Skeleon ESP',
+	Transparency = nil, -- Optional. Enables transparency changing for this color picker (leave as nil to disable)
+
+	Callback = function(Value)
+		SkeletonESP.Colour = Value
+	end
+})
+
+local SDepencency = ESPMain:AddDependencyBox()
+
+SDepencency:SetupDependencies({
+	{ Toggles.SkeletonToggle, true }
+})
+
+local SelfSkeleton = SDepencency:AddToggle('SelfSkeleton', {
+	Text = 'Self skeleton',
+	Default = false,
+	Tooltip = 'gives you a skeleton',
+
+	Callback = function(Value)
+		SkeletonESP.SelfSkeleton = Value
+	end
+}):AddColorPicker('SelfSkeletonColour', {
+	Default = Color3.new(0.205,0.923,0.514),
+	Title = 'Skeleon ESP',
+	Transparency = nil,
+
+	Callback = function(Value)
+		SkeletonESP.SelfColour = Value
+	end
+})
 
 local MenuGroup = Tabs.UISettings:AddLeftGroupbox('Menu')
 MenuGroup:AddButton('Unload', function() RunScript = false Library:Unload() end)
@@ -456,7 +526,9 @@ local function GenString(length)
 end
 
 local Folder = Instance.new("Folder",workspace)
-Folder.Name = GenString(15)
+
+local ScreenGUI = Instance.new("ScreenGui")
+local Viewport = Instance.new("ViewportFrame")
 
 local MouseIsMoving = false
 local MouseWasMoving = false
@@ -464,6 +536,19 @@ local LastFace = Vector3.zero
 local StoppedAt = tick()
 
 local PositionRecord = {}
+local SkeletonCache = {}
+
+Folder.Name = GenString(15)
+
+Viewport.Transparency = 1
+Viewport.Size = UDim2.new(1,0,1,57)
+Viewport.Position = UDim2.new(0,0,0,-57)
+Viewport.Parent = ScreenGUI
+Viewport.CurrentCamera = workspace.CurrentCamera
+Viewport.Ambient = Color3.fromRGB(255,255,255)
+Viewport.LightColor = Color3.fromRGB(255,255,255)
+
+ScreenGUI.Parent = game.CoreGui
 
 local function VectorAngle(a,b)
 	if a == b then return 0 end
@@ -550,6 +635,235 @@ local function AimAssist(Position: Vector3,Settings,Step)
 		end
 	elseif MouseWasMoving then
 		StoppedAt = tick()
+	end
+end
+
+local function RefreshSGUI()
+	ScreenGUI = Instance.new("ScreenGui")
+	Viewport = Instance.new("ViewportFrame")
+	Viewport.Transparency = 1
+	Viewport.Size = UDim2.new(1,0,1,57)
+	Viewport.Position = UDim2.new(0,0,0,-57)
+	Viewport.Parent = ScreenGUI
+	Viewport.CurrentCamera = workspace.CurrentCamera
+	Viewport.Ambient = Color3.fromRGB(255,255,255)
+	Viewport.LightColor = Color3.fromRGB(255,255,255)
+	ScreenGUI.Parent = LocalPlayer.PlayerGui
+end
+
+local function DrawLine(Position1,Position2)
+	local Part = Instance.new("Part")
+	Part.Anchored = true
+	Part.CanCollide = false
+	Part.Parent = workspace
+	Part.Color = SkeletonESP.Colour
+	local Size = (Position1 - Position2).Magnitude
+	Part.Size = Vector3.new(0.05, 0.05,  Size)
+	Part.CFrame = CFrame.new(Position1:Lerp(Position2, 0.5),Position2)
+	Part.Parent = Viewport
+	return Part
+end
+
+local function GetLineInfo(Position1,Position2)
+	local Size = (Position1 - Position2).Magnitude
+	local CF = CFrame.new(Position1:Lerp(Position2, 0.5),Position2)
+
+	return {Size = Vector3.new(0.05,0.05,Size),CFrame = CF}
+end
+
+local function GenerateSkeleton(Character: Model)
+	local Parts = {}
+
+	local LeftArm = Instance.new("Part")
+	LeftArm.CanCollide = false
+	LeftArm.Anchored = true
+	LeftArm.Size = Vector3.new(0.05,1.3,0.05)
+	LeftArm.Color = SkeletonESP.Colour
+	LeftArm.Parent = Viewport
+	LeftArm.Name = "Left Arm"
+
+	Parts["Left Arm"] = {Part = LeftArm,Offset = CFrame.new(),Connector = false}
+
+	local RightArm = Instance.new("Part")
+	RightArm.CanCollide = false
+	RightArm.Anchored = true
+	RightArm.Size = Vector3.new(0.05,1.3,0.05)
+	RightArm.Color = SkeletonESP.Colour
+	RightArm.Parent = Viewport
+	RightArm.Name = "Right Arm"
+
+	Parts["Right Arm"] = {Part = RightArm,Offset = CFrame.new(),Connector = false}
+
+	local Torso = Instance.new("Part")
+	Torso.CanCollide = false
+	Torso.Anchored = true
+	Torso.Size = Vector3.new(0.05,2,0.05)
+	Torso.Color = SkeletonESP.Colour
+	Torso.Parent = Viewport
+	Torso.Name = "Torso"
+
+	Parts["Torso"] = {Part = Torso,Offset = CFrame.new(Vector3.new(0,0.2,0)),Connector = false}
+
+	local LeftLeg = Instance.new("Part")
+	LeftLeg.CanCollide = false
+	LeftLeg.Anchored = true
+	LeftLeg.Size = Vector3.new(0.05,1.3,0.05)
+	LeftLeg.Color = SkeletonESP.Colour
+	LeftLeg.Parent = Viewport
+	LeftLeg.Name = "Left Leg"
+
+	Parts["Left Leg"] = {Part = LeftLeg,Offset = CFrame.new(),Connector = false}
+
+	local RightLeg = Instance.new("Part")
+	RightLeg.CanCollide = false
+	RightLeg.Anchored = true
+	RightLeg.Size = Vector3.new(0.05,1.3,0.05)
+	RightLeg.Color = SkeletonESP.Colour
+	RightLeg.Parent = Viewport
+	RightLeg.Name = "Right Leg"
+
+	Parts["Right Leg"] = {Part = RightLeg,Offset = CFrame.new(),Connector = false}
+
+	local TRS = Character:FindFirstChild("Torso")
+	local LA = Character:FindFirstChild("Left Arm")
+	local RA = Character:FindFirstChild("Right Arm")
+	local LL = Character:FindFirstChild("Left Leg")
+	local RL = Character:FindFirstChild("Right Leg")
+	if TRS then
+		if LA  then
+			Parts["Connector1"] = {Connector = true,Part = DrawLine((LA.CFrame * CFrame.new(Vector3.new(0,0.625,0))).Position,(TRS.CFrame * CFrame.new(Vector3.new(0,0.25,0))).Position)}
+		end
+		if RA then
+			Parts["Connector2"] = {Connector = true,Part = DrawLine((RA.CFrame * CFrame.new(Vector3.new(0,0.625,0))).Position,(TRS.CFrame * CFrame.new(Vector3.new(0,0.25,0))).Position)}
+		end
+		if LL then
+			Parts["Connector3"] = {Connector = true,Part = DrawLine((LL.CFrame * CFrame.new(Vector3.new(0,0.625,0))).Position,(TRS.CFrame * CFrame.new(Vector3.new(0,-0.8,0))).Position)}
+		end
+		if RL then
+			Parts["Connector4"] = {Connector = true,Part = DrawLine((RL.CFrame * CFrame.new(Vector3.new(0,0.625,0))).Position,(TRS.CFrame * CFrame.new(Vector3.new(0,-0.8,0))).Position)}
+		end
+	end
+	return Parts
+end
+
+local function DrawSkeleton(Player: Player)
+	if Player == LocalPlayer and not SkeletonESP.SelfSkeleton then
+		return
+	end
+	if Player.Character then
+
+		if not SkeletonCache[Player.Name] then
+			local Skeleton = GenerateSkeleton(Player.Character)
+			
+			if Player == LocalPlayer then
+				for _,v in pairs(Skeleton) do
+					if v.Part then
+						v.Part.Color = SkeletonESP.SelfColour
+					end
+				end
+			end
+			
+			SkeletonCache[Player.Name] = Skeleton
+
+			for i,v in pairs(Skeleton) do
+				if not v.Connector then
+					local Part = Player.Character:FindFirstChild(i)
+					if Part and Part:IsA("BasePart") then
+						v.Part.CFrame = Part.CFrame * v.Offset
+					else
+						v.Transparency = 1
+					end
+				end
+			end
+		else
+			local PCache = SkeletonCache[Player.Name]
+
+			local TRS = Player.Character:FindFirstChild("Torso")
+			local LA = Player.Character:FindFirstChild("Left Arm")
+			local RA = Player.Character:FindFirstChild("Right Arm")
+			local LL = Player.Character:FindFirstChild("Left Leg")
+			local RL = Player.Character:FindFirstChild("Right Leg")
+
+			for i,v in pairs(PCache) do
+
+				if v.Connector then
+
+					if TRS then
+
+						if i == "Connector1" and LA then
+							local info = GetLineInfo((LA.CFrame * CFrame.new(Vector3.new(0,0.625,0))).Position,(TRS.CFrame * CFrame.new(Vector3.new(0,0.25,0))).Position)
+							v.Part.CFrame = info.CFrame
+							v.Part.Size = info.Size
+							v.Part.Transparency = 0
+						end
+
+						if i == "Connector2" and RA then
+							local info = GetLineInfo((RA.CFrame * CFrame.new(Vector3.new(0,0.625,0))).Position,(TRS.CFrame * CFrame.new(Vector3.new(0,0.25,0))).Position)
+							v.Part.CFrame = info.CFrame
+							v.Part.Size = info.Size
+							v.Part.Transparency = 0
+						end
+
+						if i == "Connector3" and LL then
+							local info = GetLineInfo((LL.CFrame * CFrame.new(Vector3.new(0,0.625,0))).Position,(TRS.CFrame * CFrame.new(Vector3.new(0,-0.8,0))).Position)
+							v.Part.CFrame = info.CFrame
+							v.Part.Size = info.Size
+							v.Part.Transparency = 0
+						end
+
+						if i == "Connector4" and RL then
+							local info = GetLineInfo((RL.CFrame * CFrame.new(Vector3.new(0,0.625,0))).Position,(TRS.CFrame * CFrame.new(Vector3.new(0,-0.8,0))).Position)
+							v.Part.CFrame = info.CFrame
+							v.Part.Size = info.Size
+							v.Part.Transparency = 0
+						end
+
+					end
+
+				else
+
+					local part = Player.Character:FindFirstChild(i)
+					if part then
+						v.Part.CFrame = part.CFrame
+						v.Part.Transparency = 0
+					end
+
+				end
+			end
+		end
+	end
+end
+
+local function UpdateESP()
+	
+	if not RunScript then
+		ScreenGUI:Destroy()
+		return
+	end
+	
+	if not ScreenGUI.Parent then
+		RefreshSGUI()
+	end
+	for i,v in pairs(SkeletonCache) do
+		for _,v in pairs(v) do
+			if v.Part then
+				v.Part.Transparency = 1
+				if i == LocalPlayer.Name then
+					v.Part.Color = SkeletonESP.SelfColour
+				else
+					v.Part.Color = SkeletonESP.Colour
+				end
+			end
+		end
+	end
+	if ESP.Enabled then
+	
+		if SkeletonESP.Enabled then
+			for _,v in pairs(Players:GetPlayers()) do
+				DrawSkeleton(v)
+			end
+		end
+	
 	end
 end
 
@@ -671,6 +985,15 @@ local function NearestIndexTo(Timer)
 	return PositionRecord[NearestIndex] or nil
 end
 
+local function RemoveFChar()
+	local FChar = Folder:FindFirstChild("PlayerClone")
+	if FChar then
+		FChar:Destroy()
+	end
+end
+
+LocalPlayer.ChildAdded:Connect(RemoveFChar)
 
 UserInputService.InputChanged:Connect(OnInputChange)
 RunService.RenderStepped:Connect(MainScript)
+RunService.RenderStepped:Connect(UpdateESP)
