@@ -3,9 +3,7 @@
 __Stable build:__
   
 ```Lua
- 
 loadstring(game:HttpGet("https://raw.githubusercontent.com/AureusLIB/TimeBombModules/refs/heads/main/Launcher.lua"))()
- 
 ```
 
 __Features:__
