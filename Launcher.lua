@@ -5,6 +5,8 @@ local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/v
 local RunScript = true
 
 --Script variables
+
+--Legit
 local TrackAssist = {
 	Enabled = false,
 	Strength = 2,
@@ -33,11 +35,24 @@ local HoldAssist = {
 	Overtime = 0.05
 }
 
+--Semi-rage
+
 local FGrab = {
 	Enabled = false,
 	Size = 3
 }
 
+local Sphere = {
+	Enabled = false,
+	DefaultSize = 2,
+	WallSize = 0.5,
+	Visualise = false,
+	VisualiseColour = Color3.fromRGB(55,155,255),
+	Transparency = 0.8
+}
+
+
+--ESP
 local ESP = {
 	Enabled = false
 }
@@ -425,6 +440,69 @@ GrabForceBox:AddSlider('FGrabSize', {
 	end
 })
 
+local SphereBox = Tabs.SemiRage:AddRightGroupbox("Sphere")
+
+local SphereToggle = SphereBox:AddToggle('SphereToggle', {
+	Text = 'Toggle sphere',
+	Default = false,
+	Tooltip = 'Lets you give from further',
+
+	Callback = function(Value)
+		Sphere.Enabled = Value
+	end
+}):AddKeyPicker('SphereKeybind', {
+	Default = 'Q',
+	SyncToggleState = false,
+	Mode = 'Hold',
+
+	Text = 'Toggle sphere',
+	NoUI = true
+})
+
+local VisualiseSphere = SphereBox:AddToggle('VisualuseSphereToggle', {
+	Text = 'Visualise sphere',
+	Default = false,
+	Tooltip = 'Visualise sphere',
+
+	Callback = function(Value)
+		Sphere.Visualise = Value
+	end
+}):AddColorPicker('SphereColour', {
+	Default = Color3.new(0.216,0.608,1),
+	Title = 'Sphere Visualiser',
+	Transparency = nil,
+
+	Callback = function(Value)
+		Sphere.VisualiseColour = Value
+	end
+})
+
+SphereBox:AddSlider('SphereNormalValue', {
+	Text = 'Sphere size',
+	Default = 2,
+	Min = 0,
+	Max = 8,
+	Rounding = 1,
+	Compact = false,
+
+	Callback = function(Value)
+		Sphere.DefaultSize = Value
+	end
+})
+
+SphereBox:AddSlider('SphereWallValue', {
+	Text = 'Through wall size',
+	Default = 0.5,
+	Min = 0,
+	Max = 8,
+	Rounding = 1,
+	Compact = false,
+
+	Callback = function(Value)
+		Sphere.WallSize = Value
+	end
+})
+
 --[[
 	VISUALS
 ]]
@@ -525,7 +603,8 @@ local function GenString(length)
 	return table.concat(t,"")
 end
 
-local Folder = Instance.new("Folder",workspace)
+local Folder = Instance.new("Folder")
+Folder.Parent = game.Workspace
 
 local ScreenGUI = Instance.new("ScreenGui")
 local Viewport = Instance.new("ViewportFrame")
@@ -537,6 +616,8 @@ local StoppedAt = tick()
 
 local PositionRecord = {}
 local SkeletonCache = {}
+local PlayerTracker = {}
+local PlayerParts = {}
 
 Folder.Name = GenString(15)
 
@@ -549,6 +630,40 @@ Viewport.Ambient = Color3.fromRGB(255,255,255)
 Viewport.LightColor = Color3.fromRGB(255,255,255)
 
 ScreenGUI.Parent = game.CoreGui
+
+local function UpdatePlayerTracker(Step)
+	for _,v in pairs(Players:GetPlayers()) do
+		local Character = v.Character
+		local PT = PlayerTracker[v.Name]
+		if not PT or not v.Character then
+			PlayerTracker[v.Name] = {
+				["LastPos"] = Vector3.zero,
+				["Pos"] = Vector3.zero,
+				["Speed"] = 0
+			}
+		else
+			local HRP = Character:FindFirstChild("HumanoidRootPart")
+			
+			if HRP then
+				PlayerTracker[v.Name]["LastPos"] = PT["Pos"]
+				PlayerTracker[v.Name]["Pos"] = HRP.Position
+				PlayerTracker[v.Name]["Speed"] = (PlayerTracker[v.Name]["Pos"] - PlayerTracker[v.Name]["LastPos"]).Magnitude/Step
+			else
+				PlayerTracker[v.Name] = {
+					["LastPos"] = Vector3.zero,
+					["Pos"] = Vector3.zero,
+					["Speed"] = 0
+				}
+			end
+			
+		end
+		
+	end
+end
+
+local function GetSpeed(Player: Player)
+	return PlayerTracker[Player.Name]["Speed"] or 0
+end
 
 local function VectorAngle(a,b)
 	if a == b then return 0 end
@@ -867,13 +982,126 @@ local function UpdateESP()
 	end
 end
 
+local function UpdateSphere()
+	if not RunScript then return end
+	local LocalChar = LocalPlayer.Character
+	local LHRP,Params
+	if LocalChar then
+		LHRP = LocalChar:FindFirstChild("HumanoidRootPart")
+		Params = RaycastParams.new()
+		Params.FilterDescendantsInstances = PlayerParts
+		Params.FilterType = Enum.RaycastFilterType.Exclude
+	end
+	for _,v in pairs(Players:GetPlayers()) do
+		if v == LocalPlayer then continue end
+		if v.Character then
+			local chr = v.Character
+			local hrp = chr:FindFirstChild("HumanoidRootPart")
+			local Torso = chr:FindFirstChild("Torso")
+			if hrp and Torso then
+
+
+				if LHRP then
+
+					local BehindWall = workspace:Raycast(hrp.Position,LHRP.Position-hrp.Position,Params)
+					local SphereSize = Sphere.DefaultSize
+					if BehindWall then
+						SphereSize = Sphere.WallSize
+					end
+					hrp.Size = Vector3.new(SphereSize *2 + 2,2,SphereSize*2 + 1)
+					hrp.CanCollide = false
+					hrp.Transparency = 1
+
+				end	
+			end
+		end
+	end
+	if LocalPlayer.Character then
+		if not Folder:FindFirstChild("SphereVisualiser") then
+			local p = Instance.new("Part")
+			p.Shape = Enum.PartType.Ball
+			p.CanCollide = false
+			p.Transparency = 1
+			p.Material = "Neon"
+			p.Color = Sphere.VisualiseColour
+			p.Size = Vector3.new(Sphere.DefaultSize*2 + 2,Sphere.DefaultSize*2 + 2,Sphere.DefaultSize*2 + 2)
+			p.Position = Vector3.zero
+			p.Parent = Folder
+			p.Name = "SphereVisualiser"
+			p.Anchored = true
+			p.CanQuery = false
+			p.CanTouch = false
+		end
+		local SphereVis: Part = Folder:FindFirstChild("SphereVisualiser")
+		local chr = LocalPlayer.Character
+		if chr:FindFirstChildWhichIsA("Tool") and SphereVis then
+			local tool = chr:FindFirstChildWhichIsA("Tool")
+
+			if tool:FindFirstChildWhichIsA("BasePart") then
+				local Handle = tool:FindFirstChildWhichIsA("BasePart")
+				if Handle and Sphere.Visualise then
+					SphereVis.Position = Handle.Position
+					SphereVis.Transparency  = Sphere.Transparency
+					SphereVis.Color = Sphere.VisualiseColour
+					SphereVis.Size = Vector3.new(Sphere.DefaultSize*2 + 2,Sphere.DefaultSize*2 + 2,Sphere.DefaultSize*2 + 2)
+				else
+					SphereVis.Transparency = 1
+				end
+			end
+		end
+	end	
+end
+
 local function MainScript(Step)
 	Camera = workspace.CurrentCamera
 
 	if not RunScript then
+		Folder:Destroy()
 		return
 	end
 	
+	table.clear(PlayerParts)
+	
+	for _,v in pairs(Players:GetPlayers()) do
+		if v.Character then
+			for _,v2 in pairs(v.Character:GetDescendants()) do
+				if v2:IsA("Part") or v2:IsA("MeshPart") then
+					table.insert(PlayerParts,v2)
+				end
+			end
+		end
+	end
+	
+	if Sphere.Enabled and Options.SphereKeybind:GetState() then
+		
+		local chr = LocalPlayer.Character
+		
+		if chr then
+		
+		if not chr:FindFirstChildWhichIsA("Tool") and Folder:FindFirstChild("SphereVisualiser") then
+			Folder.SphereVisualiser.Transparency = 1
+		end
+		
+		end
+		
+		UpdateSphere()
+	else
+		if Folder:FindFirstChild("SphereVisualiser") then
+			Folder.SphereVisualiser.Transparency = 1
+		end
+		for _,v in pairs(Players:GetPlayers()) do
+			local chr = v.Character
+			if chr then
+				local hrp = chr:FindFirstChild("HumanoidRootPart")
+				if hrp then
+					hrp.Size = Vector3.new(2,2,1)
+				end
+				
+			end
+		end
+	end
+	
+	UpdatePlayerTracker(Step)
 	local Character: Model = LocalPlayer.Character
 	if Character then
 		Character.Archivable = true
@@ -943,6 +1171,8 @@ local function MainScript(Step)
 								elseif v.Name == "Right Arm" then
 									v.CFrame = RightArm.CFrame
 								end
+							elseif v:IsA("Accessory") then
+								v:Destroy()
 							end
 							if v:IsA("Tool") then
 								v:Destroy()
@@ -996,4 +1226,4 @@ LocalPlayer.ChildAdded:Connect(RemoveFChar)
 
 UserInputService.InputChanged:Connect(OnInputChange)
 RunService.RenderStepped:Connect(MainScript)
-RunService.RenderStepped:Connect(UpdateESP)
+RunService.RenderStepped:Connect(UpdateESP) 
