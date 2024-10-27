@@ -8,8 +8,8 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/AureusLIB/TimeBombMod
 
 __Features:__
 * Track assist
-* Hold Assist
-* Force grab
+* Hold assist
+* Grab assist
 
 # Indivudual modules
 
@@ -19,4 +19,5 @@ For people who dont want a UI, however you cant change settings while ingame
 __Available__
 * Track assist
 * Hold assist
+* Grab assist
   
