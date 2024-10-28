@@ -1036,11 +1036,11 @@ local function UpdateSphere()
 		local chr = LocalPlayer.Character
 		if chr:FindFirstChildWhichIsA("Tool") and SphereVis then
 			local tool = chr:FindFirstChildWhichIsA("Tool")
-
-			if tool:FindFirstChildWhichIsA("BasePart") then
+			local hrp = chr:FindFirstChild("HumanoidRootPart")
+			if tool:FindFirstChildWhichIsA("BasePart")  and hrp then
 				local Handle = tool:FindFirstChildWhichIsA("BasePart")
 				if Handle and Sphere.Visualise then
-					SphereVis.Position = Handle.Position
+					SphereVis.Position = (hrp.CFrame * CFrame.new(Vector3.new(1.5,0,-1.5))).Position
 					SphereVis.Transparency  = Sphere.Transparency
 					SphereVis.Color = Sphere.VisualiseColour
 					SphereVis.Size = Vector3.new(Sphere.DefaultSize*2 + 2,Sphere.DefaultSize*2 + 2,Sphere.DefaultSize*2 + 2)
@@ -1051,6 +1051,14 @@ local function UpdateSphere()
 		end
 	end	
 end
+
+local function RemoveFChar()
+	local FChar = Folder:FindFirstChild("PlayerClone")
+	if FChar then
+		FChar:Destroy()
+	end
+end
+
 
 local function MainScript(Step)
 	Camera = workspace.CurrentCamera
@@ -1078,9 +1086,9 @@ local function MainScript(Step)
 		
 		if chr then
 		
-		if not chr:FindFirstChildWhichIsA("Tool") and Folder:FindFirstChild("SphereVisualiser") then
-			Folder.SphereVisualiser.Transparency = 1
-		end
+			if not chr:FindFirstChildWhichIsA("Tool") and Folder:FindFirstChild("SphereVisualiser") then
+				Folder.SphereVisualiser.Transparency = 1
+			end
 		
 		end
 		
@@ -1105,17 +1113,25 @@ local function MainScript(Step)
 	local Character: Model = LocalPlayer.Character
 	if Character then
 		Character.Archivable = true
+		local Torso: Part = Character:FindFirstChild("Torso")
+		local Humanoid = Character:FindFirstChildWhichIsA("Humanoid")
 		local HRP: Part = Character:FindFirstChild("HumanoidRootPart")
 		local LeftArm: Part = Character:FindFirstChild("Left Arm")
 		local RightArm: Part = Character:FindFirstChild("Right Arm")
 		local PC = Folder:FindFirstChild("PlayerClone")
 		local PCL,PCR
+		if Humanoid then
+			if Humanoid.Health == 0 then
+				RemoveFChar()
+			end
+		end
 		if LeftArm then
 			if PC then
 				PCL = PC:FindFirstChild("Left Arm")
 				if PCL then
-					PCL.CFrame = LeftArm.CFrame
 					PCL.Transparency = 1
+					PCL.Orientation = LeftArm.Orientation
+					PCL.Position = LeftArm.Position
 				end
 			end
 			LeftArm.Size = Vector3.new(1,2,1)
@@ -1125,8 +1141,9 @@ local function MainScript(Step)
 			if PC then
 				PCR = PC:FindFirstChild("Right Arm")
 				if PCR then
-					PCR.CFrame = RightArm.CFrame
 					PCR.Transparency = 1
+					PCR.Orientation = RightArm.Orientation
+					PCR.Position = RightArm.Position
 				end
 			end
 			RightArm.Size = Vector3.new(1,2,1)
@@ -1161,15 +1178,25 @@ local function MainScript(Step)
 						local FChar = Character:Clone()
 						FChar.Parent = Folder
 						FChar.Name = "PlayerClone"
+						
+						local Weld = Instance.new("WeldConstraint")
+						
 						for _,v in pairs(FChar:GetChildren()) do
 							if v:IsA("Part") then
-								v.Anchored = true
 								if not (v.Name == "Left Arm" or v.Name == "Right Arm") then
 									v:Destroy()
 								elseif v.Name == "Left Arm" then
 									v.CFrame = LeftArm.CFrame
+									local Weld = Instance.new("WeldConstraint")
+									Weld.Part1 = v
+									Weld.Parent = v
+									Weld.Part0 = HRP
 								elseif v.Name == "Right Arm" then
 									v.CFrame = RightArm.CFrame
+									local Weld = Instance.new("WeldConstraint")
+									Weld.Part1 = v
+									Weld.Parent = v
+									Weld.Part0 = HRP
 								end
 							elseif v:IsA("Accessory") then
 								v:Destroy()
@@ -1180,13 +1207,13 @@ local function MainScript(Step)
 						end
 					end
 					local GS = FGrab.Size
-					if RightArm and LeftArm and PCL and PCR then
+					if RightArm and LeftArm and PCL and PCR and Torso then
 						PCL.Transparency = 0
 						PCR.Transparency = 0
 						LeftArm.Transparency = 1
 						RightArm.Transparency = 1
-						LeftArm.Size = Vector3.new(GS,GS,GS)
-						RightArm.Size = Vector3.new(GS,GS,GS)
+						LeftArm.Size = Vector3.new(GS,2,GS)
+						RightArm.Size = Vector3.new(GS,2,GS)
 					end
 				end
 			end
@@ -1196,32 +1223,6 @@ local function MainScript(Step)
 	MouseWasMoving = MouseIsMoving
 	MouseIsMoving = false
 end
-
-local function NearestIndexTo(Timer)
-	local MinDiff = math.huge
-	local NearestIndex = nil
-	for Time,_ in pairs(PositionRecord) do
-		if tick()-Time > 1 then
-			PositionRecord[Time] = nil
-			continue
-		end
-
-		local temp = math.abs(Time-Timer)
-		if temp < MinDiff then
-			NearestIndex = Time
-			MinDiff = temp
-		end
-	end
-	return PositionRecord[NearestIndex] or nil
-end
-
-local function RemoveFChar()
-	local FChar = Folder:FindFirstChild("PlayerClone")
-	if FChar then
-		FChar:Destroy()
-	end
-end
-
 LocalPlayer.ChildAdded:Connect(RemoveFChar)
 
 UserInputService.InputChanged:Connect(OnInputChange)
